@@ -324,9 +324,16 @@ fn summarize_throughput(
 }
 
 fn subtract_saturating(counter: &AtomicU64, amount: u64) {
-    let _ = counter.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |cur| {
-        Some(cur.saturating_sub(amount))
-    });
+    loop {
+        let cur = counter.load(Ordering::Relaxed);
+        let next = cur.saturating_sub(amount);
+        if counter
+            .compare_exchange_weak(cur, next, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            break;
+        }
+    }
 }
 
 async fn sleep_or_cancel(delay: Duration, cancel: &CancellationToken) {
@@ -433,9 +440,12 @@ mod tests {
                         break;
                     }
                 } else {
-                    let mut sizes = down_sizes.lock().unwrap();
-                    sizes.push(path.to_string());
-                    if sizes.len() == 1 {
+                    let is_first = {
+                        let mut sizes = down_sizes.lock().unwrap();
+                        sizes.push(path.to_string());
+                        sizes.len() == 1
+                    };
+                    if is_first {
                         let resp = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\n\r\n";
                         if writer.write_all(resp.as_bytes()).await.is_err() {
                             break;

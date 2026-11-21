@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use reqwest::Url;
 use std::env;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 
 /// IP address family restriction applied to DNS, TLS, HTTP, and UDP probes.
@@ -69,7 +69,11 @@ impl Config {
     where
         F: Fn(&str) -> Option<String>,
     {
-        let bind_addr: IpAddr = parse_or_default(&lookup, "SPEEDTEST_BIND_ADDR", "0.0.0.0")?;
+        let bind_addr: IpAddr = parse_or_default(
+            &lookup,
+            "SPEEDTEST_BIND_ADDR",
+            IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+        )?;
         let port: u16 = parse_or_default(&lookup, "SPEEDTEST_PORT", 9798)?;
 
         let cache_secs: u64 = parse_or_default(&lookup, "SPEEDTEST_CACHE_DURATION", 300)?;

@@ -5,7 +5,6 @@ edition = "2021"
 rust-version = "1.85"
 license = "MIT"
 repository = "https://github.com/PotatoPTT/cloudflare-speedtest-exporter"
-homepage = "https://github.com/PotatoPTT/cloudflare-speedtest-exporter"
 description = "Lightweight, multi-arch Prometheus exporter in Rust for Cloudflare Speedtest with bufferbloat, DNS/TLS, and UDP STUN diagnostics"
 keywords = ["prometheus", "exporter", "cloudflare", "speedtest", "metrics"]
 categories = ["network-programming", "command-line-utilities"]
