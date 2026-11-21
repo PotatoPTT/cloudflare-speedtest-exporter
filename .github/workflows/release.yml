@@ -1,0 +1,210 @@
+name: Release Multi-Arch Docker & Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and publish (e.g. v0.1.0). Defaults to git tag or v0.1.0."
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    name: Format, Clippy & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test --all-targets
+
+  build-and-publish:
+    name: Build Multi-Arch & Publish GHCR
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve image metadata & version tags
+        id: meta
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${OWNER}/cloudflare-speedtest-exporter"
+
+          if [ -n "${INPUT_TAG}" ]; then
+            TAG="${INPUT_TAG}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            VERSION_FROM_CARGO=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
+            TAG="v${VERSION_FROM_CARGO}"
+          fi
+
+          VERSION="${TAG#v}"
+          MINOR="${VERSION%.*}"
+
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "minor=${MINOR}" >> "$GITHUB_OUTPUT"
+
+      - name: Cross-compile Rust binaries (Debian Bookworm ABI)
+        run: |
+          set -euo pipefail
+          mkdir -p dist/amd64 dist/arm64 dist/armv7
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            -w /work \
+            rust:1-bookworm \
+            bash -euo pipefail -c '
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
+                gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+              rustup target add \
+                x86_64-unknown-linux-gnu \
+                aarch64-unknown-linux-gnu \
+                armv7-unknown-linux-gnueabihf
+
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+              export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+              export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc
+              export CC_armv7_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc
+
+              cargo build --release --target x86_64-unknown-linux-gnu
+              cargo build --release --target aarch64-unknown-linux-gnu
+              cargo build --release --target armv7-unknown-linux-gnueabihf
+
+              cp target/x86_64-unknown-linux-gnu/release/cloudflare-speedtest-exporter dist/amd64/
+              cp target/aarch64-unknown-linux-gnu/release/cloudflare-speedtest-exporter dist/arm64/
+              cp target/armv7-unknown-linux-gnueabihf/release/cloudflare-speedtest-exporter dist/armv7/
+            '
+          chmod +x dist/*/cloudflare-speedtest-exporter
+          file dist/*/cloudflare-speedtest-exporter
+          ls -lh dist/*/cloudflare-speedtest-exporter
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm,arm64
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Smoke test linux/amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          provenance: false
+          sbom: false
+          tags: cf-speedtest-test:amd64
+
+      - name: Run smoke test linux/amd64
+        run: docker run --rm --platform linux/amd64 cf-speedtest-test:amd64 --version
+
+      - name: Smoke test linux/arm64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          load: true
+          provenance: false
+          sbom: false
+          tags: cf-speedtest-test:arm64
+
+      - name: Run smoke test linux/arm64
+        run: docker run --rm --platform linux/arm64 cf-speedtest-test:arm64 --version
+
+      - name: Smoke test linux/arm/v7 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm/v7
+          load: true
+          provenance: false
+          sbom: false
+          tags: cf-speedtest-test:armv7
+
+      - name: Run smoke test linux/arm/v7
+        run: docker run --rm --platform linux/arm/v7 cf-speedtest-test:armv7 --version
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push Multi-Arch Image to GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.minor }}
+            ${{ steps.meta.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.title=cloudflare-speedtest-exporter
+            org.opencontainers.image.description=Lightweight multi-arch Rust Prometheus exporter for Cloudflare Speedtest
+            org.opencontainers.image.url=https://github.com/${{ github.repository }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Inspect Multi-Arch Manifest
+        run: docker buildx imagetools inspect "${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}"
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp dist/amd64/cloudflare-speedtest-exporter "release-assets/cloudflare-speedtest-exporter-${TAG}-linux-amd64"
+          cp dist/arm64/cloudflare-speedtest-exporter "release-assets/cloudflare-speedtest-exporter-${TAG}-linux-arm64"
+          cp dist/armv7/cloudflare-speedtest-exporter "release-assets/cloudflare-speedtest-exporter-${TAG}-linux-armv7"
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --generate-notes \
+            release-assets/*

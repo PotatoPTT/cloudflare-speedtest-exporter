@@ -1,0 +1,34 @@
+[package]
+name = "cloudflare-speedtest-exporter"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/PotatoPTT/cloudflare-speedtest-exporter"
+homepage = "https://github.com/PotatoPTT/cloudflare-speedtest-exporter"
+description = "Lightweight, multi-arch Prometheus exporter in Rust for Cloudflare Speedtest with bufferbloat, DNS/TLS, and UDP STUN diagnostics"
+keywords = ["prometheus", "exporter", "cloudflare", "speedtest", "metrics"]
+categories = ["network-programming", "command-line-utilities"]
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+bytes = "1"
+futures-util = "0.3"
+rand = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots", "http2", "json", "stream"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["tls12", "ring"] }
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+webpki-roots = "0.26"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+opt-level = 3
