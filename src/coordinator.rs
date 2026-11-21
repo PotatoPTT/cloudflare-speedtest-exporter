@@ -333,7 +333,10 @@ mod tests {
 
     #[tokio::test]
     async fn singleflight_shares_one_execution_and_caches_followups() {
-        let cfg = test_cfg(&[("SPEEDTEST_CACHE_DURATION", "60"), ("SPEEDTEST_RETRIES", "0")]);
+        let cfg = test_cfg(&[
+            ("SPEEDTEST_CACHE_DURATION", "60"),
+            ("SPEEDTEST_RETRIES", "0"),
+        ]);
         let coord = Arc::new(fast_coord(
             cfg,
             ScriptedRunner {
@@ -379,7 +382,10 @@ mod tests {
 
     #[tokio::test]
     async fn failure_clears_measurement_metrics_and_sets_up_zero() {
-        let cfg = test_cfg(&[("SPEEDTEST_CACHE_DURATION", "0"), ("SPEEDTEST_RETRIES", "1")]);
+        let cfg = test_cfg(&[
+            ("SPEEDTEST_CACHE_DURATION", "0"),
+            ("SPEEDTEST_RETRIES", "1"),
+        ]);
         let coord = fast_coord(
             cfg,
             ScriptedRunner {

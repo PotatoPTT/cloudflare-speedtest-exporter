@@ -94,7 +94,10 @@ fn run_healthcheck() -> Result<()> {
     if head.starts_with("HTTP/1.1 200") || head.starts_with("HTTP/1.0 200") {
         Ok(())
     } else {
-        bail!("unhealthy response from /health: {}", head.lines().next().unwrap_or(""))
+        bail!(
+            "unhealthy response from /health: {}",
+            head.lines().next().unwrap_or("")
+        )
     }
 }
 

@@ -50,10 +50,13 @@ pub async fn measure_tls(host: &str, addrs: &[SocketAddr]) -> Result<f64> {
         .map_err(|_| anyhow!("invalid TLS server name '{host}'"))?;
 
     let start = Instant::now();
-    let _tls_stream = timeout(HANDSHAKE_TIMEOUT, connector.connect(server_name, tcp_stream))
-        .await
-        .with_context(|| format!("TLS handshake timed out after {HANDSHAKE_TIMEOUT:?}"))?
-        .with_context(|| format!("TLS handshake failed with {host}"))?;
+    let _tls_stream = timeout(
+        HANDSHAKE_TIMEOUT,
+        connector.connect(server_name, tcp_stream),
+    )
+    .await
+    .with_context(|| format!("TLS handshake timed out after {HANDSHAKE_TIMEOUT:?}"))?
+    .with_context(|| format!("TLS handshake failed with {host}"))?;
 
     Ok(start.elapsed().as_secs_f64() * 1000.0)
 }

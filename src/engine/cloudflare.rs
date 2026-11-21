@@ -155,7 +155,10 @@ impl CloudflareClient {
     }
 
     async fn fetch_meta_endpoint(&self) -> Result<CloudflareMeta> {
-        let mut url = self.base_url.join("/meta").context("failed to join /meta")?;
+        let mut url = self
+            .base_url
+            .join("/meta")
+            .context("failed to join /meta")?;
         url.query_pairs_mut().append_pair("measId", &self.meas_id);
         let value: Value = self
             .http
@@ -270,8 +273,7 @@ pub fn parse_meta_headers(resp: &Response) -> CloudflareMeta {
     let headers = resp.headers();
 
     let colo = header_str(headers, "cf-meta-colo").or_else(|| {
-        header_str(headers, "cf-ray")
-            .and_then(|ray| ray.split('-').nth(1).and_then(non_empty_str))
+        header_str(headers, "cf-ray").and_then(|ray| ray.split('-').nth(1).and_then(non_empty_str))
     });
 
     CloudflareMeta {
@@ -349,7 +351,8 @@ mod tests {
 
     #[test]
     fn parses_trace_output() {
-        let trace = "fl=123f45\nh=speed.cloudflare.com\nip=192.0.2.1\ncolos=ignored\ncolo=GRU\nloc=BR\n";
+        let trace =
+            "fl=123f45\nh=speed.cloudflare.com\nip=192.0.2.1\ncolos=ignored\ncolo=GRU\nloc=BR\n";
         let meta = parse_trace_text(trace);
         assert_eq!(meta.colo.as_deref(), Some("GRU"));
         assert_eq!(meta.country.as_deref(), Some("BR"));

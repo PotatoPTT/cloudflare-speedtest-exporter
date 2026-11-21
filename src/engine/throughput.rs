@@ -98,13 +98,8 @@ pub async fn run_upload(
         }));
     }
 
-    let lat_handle = spawn_loaded_latency(
-        client,
-        "upload",
-        cfg.upload_duration,
-        cfg,
-        &phase_cancel,
-    );
+    let lat_handle =
+        spawn_loaded_latency(client, "upload", cfg.upload_duration, cfg, &phase_cancel);
 
     let (samples, rates_bps, active_duration) =
         sample_throughput(&total_bytes, cfg.upload_duration, cancel).await;
@@ -303,9 +298,12 @@ fn summarize_throughput(
     rates_bps: &[f64],
     active_duration: Duration,
 ) -> ThroughputSummary {
-    let (steady_bytes, steady_window, steady_rates) =
-        stats::steady_state_window(samples, rates_bps, active_duration)
-            .unwrap_or((total_bytes, active_duration, rates_bps));
+    let (steady_bytes, steady_window, steady_rates) = stats::steady_state_window(
+        samples,
+        rates_bps,
+        active_duration,
+    )
+    .unwrap_or((total_bytes, active_duration, rates_bps));
 
     let secs = steady_window.as_secs_f64().max(1e-9);
     let steady_bps = (steady_bytes as f64 * 8.0) / secs;
@@ -516,10 +514,7 @@ mod tests {
     #[tokio::test]
     async fn download_reduces_request_size_on_429() {
         let (base_url, down_paths, _uploads, server_cancel) = start_mock_server(false).await;
-        let cfg = test_config(
-            &base_url,
-            &[("SPEEDTEST_DOWNLOAD_BYTES_PER_REQ", "400000")],
-        );
+        let cfg = test_config(&base_url, &[("SPEEDTEST_DOWNLOAD_BYTES_PER_REQ", "400000")]);
         let client = Arc::new(
             CloudflareClient::new(&cfg.base_url, "test".to_string(), &[], IpVersion::Auto).unwrap(),
         );
@@ -548,7 +543,10 @@ mod tests {
 
         assert!(ul.total_bytes >= 256);
         let peers = upload_peers.lock().unwrap();
-        assert!(peers.len() >= 2, "expected >= 2 upload requests, got {peers:?}");
+        assert!(
+            peers.len() >= 2,
+            "expected >= 2 upload requests, got {peers:?}"
+        );
         let unique: HashSet<_> = peers.iter().copied().collect();
         assert_eq!(unique.len(), 1, "expected HTTP keep-alive reuse: {peers:?}");
     }
@@ -565,6 +563,9 @@ mod tests {
         let res = run_upload(&client, &cfg, &cancel).await;
         server_cancel.cancel();
 
-        assert!(res.is_err(), "expected error when all uploads fail with 500");
+        assert!(
+            res.is_err(),
+            "expected error when all uploads fail with 500"
+        );
     }
 }

@@ -152,7 +152,9 @@ mod tests {
             .enumerate()
             .map(|(i, b)| (Duration::from_secs(i as u64 + 1), *b))
             .collect();
-        let rates = vec![40.0, 200.0, 800.0, 800.0, 800.0, 800.0, 800.0, 800.0, 800.0, 800.0];
+        let rates = vec![
+            40.0, 200.0, 800.0, 800.0, 800.0, 800.0, 800.0, 800.0, 800.0, 800.0,
+        ];
 
         let (bytes, window, steady) =
             steady_state_window(&samples, &rates, Duration::from_secs(10)).unwrap();
