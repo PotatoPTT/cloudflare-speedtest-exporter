@@ -110,6 +110,7 @@ jobs:
               cp target/aarch64-unknown-linux-gnu/release/cloudflare-speedtest-exporter dist/arm64/
               cp target/armv7-unknown-linux-gnueabihf/release/cloudflare-speedtest-exporter dist/armv7/
             '
+          sudo chown -R "$(id -u):$(id -g)" dist target
           chmod +x dist/*/cloudflare-speedtest-exporter
           file dist/*/cloudflare-speedtest-exporter
           ls -lh dist/*/cloudflare-speedtest-exporter

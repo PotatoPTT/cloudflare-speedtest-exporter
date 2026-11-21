@@ -263,10 +263,7 @@ async fn sample_throughput(
     let mut samples = Vec::with_capacity(64);
     let mut rates_bps = Vec::with_capacity(64);
 
-    loop {
-        let Some(remaining) = duration.checked_sub(start.elapsed()) else {
-            break;
-        };
+    while let Some(remaining) = duration.checked_sub(start.elapsed()) {
         if remaining.is_zero() || cancel.is_cancelled() {
             break;
         }
